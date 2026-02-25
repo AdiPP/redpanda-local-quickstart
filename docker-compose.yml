@@ -28,6 +28,10 @@ services:
             # Tells Seastar (the framework Redpanda uses under the hood) to use 1 core on the system.
             - --smp 1
             - --default-log-level=info
+            # SASL configuration.
+            - --set redpanda.enable_sasl=true
+            - --set redpanda.superusers=["admin"]
+            - --set redpanda.sasl_mechanisms=["SCRAM","PLAIN"]
         image: docker.redpanda.com/redpandadata/redpanda:v25.3.7
         container_name: redpanda-0
         volumes:
@@ -39,6 +43,7 @@ services:
             - 18082:18082
             - 19092:19092
             - 19644:9644
+
     console:
         container_name: redpanda-console
         image: docker.redpanda.com/redpandadata/console:v3.5.2
@@ -51,6 +56,11 @@ services:
             CONSOLE_CONFIG_FILE: |
                 kafka:
                   brokers: ["redpanda-0:9092"]
+                  sasl:
+                    enabled: true
+                    mechanism: SCRAM-SHA-256
+                    username: admin
+                    password: password
                 schemaRegistry:
                   enabled: true
                   urls: ["http://redpanda-0:8081"]
