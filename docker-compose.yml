@@ -1,42 +1,65 @@
+# This name is used for the Docker project.
 name: redpanda-quickstart-one-broker
+
+# Define the network for communication between services.
 networks:
     redpanda_network:
         driver: bridge
+
+# Define the volume for persisting Redpanda data.
 volumes:
     redpanda-0: null
 
 services:
+    # The Redpanda broker service.
     redpanda-0:
         command:
             - redpanda
             - start
+            # Internal listener for Kafka API within the Docker network.
+            # External listener for Kafka API accessible from the host machine.
             - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+            # Advertised addresses for clients to connect to the Kafka API.
             - --advertise-kafka-addr internal://redpanda-0:9092,external://localhost:19092
+            # Internal and external listeners for the Pandaproxy (HTTP proxy for Kafka).
             - --pandaproxy-addr internal://0.0.0.0:8082,external://0.0.0.0:18082
+            # Advertised addresses for clients to connect to the Pandaproxy.
             - --advertise-pandaproxy-addr internal://redpanda-0:8082,external://localhost:18082
+            # Internal and external listeners for the Schema Registry.
             - --schema-registry-addr internal://0.0.0.0:8081,external://0.0.0.0:18081
+            # RPC address for internal communication between Redpanda nodes.
             - --rpc-addr redpanda-0:33145
+            # Advertised RPC address for other nodes to connect.
             - --advertise-rpc-addr redpanda-0:33145
+            # Run in developer mode.
             - --mode dev-container
+            # Use a single core.
             - --smp 1
+            # Set the default log level.
             - --default-log-level=info
-            # SASL configuration
+            # --- SASL (Simple Authentication and Security Layer) configuration ---
+            # Enable SASL authentication.
             - --set redpanda.enable_sasl=true
+            # Define superusers.
             - --set redpanda.superusers=["admin"]
+            # Supported SASL mechanisms.
             - --set redpanda.sasl_mechanisms=["SCRAM","PLAIN"]
         image: docker.redpanda.com/redpandadata/redpanda:v25.3.7
         container_name: redpanda-0
         volumes:
+            # Mount the named volume to persist Redpanda data.
             - redpanda-0:/var/lib/redpanda/data
         networks:
             - redpanda_network
         ports:
-            - 18081:18081
-            - 18082:18082
-            - 19092:19092
-            - 19644:9644
+            # Expose ports to the host machine.
+            - "18081:18081" # Schema Registry
+            - "18082:18082" # Pandaproxy
+            - "19092:19092" # Kafka API
+            - "19644:9644"  # Admin API
 
     # --- AUTO-SETUP CONTAINER ---
+    # This container runs a script to create a Redpanda user and then exits.
     redpanda-setup:
         image: docker.redpanda.com/redpandadata/redpanda:v25.3.7
         container_name: redpanda-setup
@@ -57,6 +80,7 @@ services:
             echo 'User created successfully! Shutting down setup container.';
             "
 
+    # The Redpanda Console service (web UI).
     console:
         container_name: redpanda-console
         image: docker.redpanda.com/redpandadata/console:v3.5.2
@@ -66,6 +90,7 @@ services:
         command: -c 'echo "$$CONSOLE_CONFIG_FILE" > /tmp/config.yml; /app/console'
         environment:
             CONFIG_FILEPATH: /tmp/config.yml
+            # Configuration for the Redpanda Console.
             CONSOLE_CONFIG_FILE: |
                 kafka:
                   brokers: ["redpanda-0:9092"]
@@ -82,8 +107,8 @@ services:
                     enabled: true
                     urls: ["http://redpanda-0:9644"]
         ports:
-            - 8080:8080
+            - "8080:8080" # Redpanda Console UI
         depends_on:
-            # Console waits for the setup container to finish its job before starting
+            # Console waits for the setup container to finish its job before starting.
             redpanda-setup:
                 condition: service_completed_successfully
