@@ -4,31 +4,23 @@ networks:
         driver: bridge
 volumes:
     redpanda-0: null
+
 services:
     redpanda-0:
         command:
             - redpanda
             - start
             - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
-            # Address the broker advertises to clients that connect to the Kafka API.
-            # Use the internal addresses to connect to the Redpanda brokers'
-            # from inside the same Docker network.
-            # Use the external addresses to connect to the Redpanda brokers'
-            # from outside the Docker network.
             - --advertise-kafka-addr internal://redpanda-0:9092,external://localhost:19092
             - --pandaproxy-addr internal://0.0.0.0:8082,external://0.0.0.0:18082
-            # Address the broker advertises to clients that connect to the HTTP Proxy.
             - --advertise-pandaproxy-addr internal://redpanda-0:8082,external://localhost:18082
             - --schema-registry-addr internal://0.0.0.0:8081,external://0.0.0.0:18081
-            # Redpanda brokers use the RPC API to communicate with each other internally.
             - --rpc-addr redpanda-0:33145
             - --advertise-rpc-addr redpanda-0:33145
-            # Mode dev-container uses well-known configuration properties for development in containers.
             - --mode dev-container
-            # Tells Seastar (the framework Redpanda uses under the hood) to use 1 core on the system.
             - --smp 1
             - --default-log-level=info
-            # SASL configuration.
+            # SASL configuration
             - --set redpanda.enable_sasl=true
             - --set redpanda.superusers=["admin"]
             - --set redpanda.sasl_mechanisms=["SCRAM","PLAIN"]
@@ -43,6 +35,27 @@ services:
             - 18082:18082
             - 19092:19092
             - 19644:9644
+
+    # --- AUTO-SETUP CONTAINER ---
+    redpanda-setup:
+        image: docker.redpanda.com/redpandadata/redpanda:v25.3.7
+        container_name: redpanda-setup
+        networks:
+            - redpanda_network
+        depends_on:
+            - redpanda-0
+        restart: "no"
+        entrypoint: /bin/sh
+        # This script loops until Redpanda is ready, creates the user, then exits.
+        command: >
+            -c "
+            echo 'Waiting for Redpanda to be ready...';
+            until rpk security user create admin --password password --mechanism SCRAM-SHA-256 --api-urls http://redpanda-0:9644; do
+              echo 'Broker not ready yet, retrying in 3 seconds...';
+              sleep 3;
+            done;
+            echo 'User created successfully! Shutting down setup container.';
+            "
 
     console:
         container_name: redpanda-console
@@ -71,4 +84,6 @@ services:
         ports:
             - 8080:8080
         depends_on:
-            - redpanda-0
+            # Console waits for the setup container to finish its job before starting
+            redpanda-setup:
+                condition: service_completed_successfully
