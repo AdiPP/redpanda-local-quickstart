@@ -33,6 +33,22 @@ This Docker Compose setup includes the following services:
     -   **Username:** `admin`
     -   **Password:** `password`
 
+## Connection Testing from Host
+
+You can test the connection from your host machine using `rpk` (Redpanda Keeper).
+
+1.  **Install `rpk`:**
+    Follow the instructions [here](https://docs.redpanda.com/current/get-started/rpk-install/) to install `rpk` on your machine.
+
+2.  **Test the connection:**
+    Run the following command to check the cluster status:
+
+    ```bash
+    rpk cluster info --brokers localhost:19092 --user admin --password password --sasl-mechanism SCRAM-SHA-256
+    ```
+
+    If successful, you should see information about your Redpanda cluster.
+
 ## Ports
 
 The following ports are exposed to your local machine:
